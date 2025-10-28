@@ -18,7 +18,6 @@ class DoubleConvolution(nnx.Module):
         x = self.conv1(x)
         #On ajoute le time embedding
         t = self.time_adapter(t)
-        t = t[:, None, None, :]
         x = x + t
         #Deuxième convolution
         x = self.conv2(x)
@@ -83,6 +82,14 @@ class DecoderBlock(nnx.Module):
             print("DecoderBlock output shape:", x.shape)
         return x
 
+def Fourier_embeding(t, time_dim):
+    """
+        Embedding de t en utilisant Fourier.
+    """
+    k = jnp.arange(time_dim//2, dtype=jnp.float32) 
+    cos = jnp.cos((2**k) * (2*jnp.pi) * t)
+    sin = jnp.sin((2**k) * (2*jnp.pi) * t)
+    return jnp.concatenate([cos, sin], axis=-1)
 
 class UNet(nnx.Module):
     """
@@ -95,17 +102,19 @@ class UNet(nnx.Module):
         self.bottleneck = Bottleneck(in_channels*8, time_dim, rngs=rngs)
         self.dec1 = DecoderBlock(in_channels*8, time_dim, rngs=rngs)
         self.dec2 = DecoderBlock(in_channels*4, time_dim, rngs=rngs)
-        self.dec3 = DecoderBlock(in_channels*2, time_dim, rngs=rngs)
+        self.dec3 = DecoderBlock(in_channels*2, time_dim, rngs=rngs)        
         
     def __call__(self, x, t, debug=False):
+        #On embed tout d'abord t en time_dim dimensions en utilisant Fourier
+        t = Fourier_embeding(t, time_dim=40)
+        if debug:
+            print("Time embedding shape:", t.shape)
         #Encodeur
         x, copy_and_crop1 = self.enc1(x, t, debug=debug)
         x, copy_and_crop2 = self.enc2(x, t, debug=debug)
-        x, copy_and_crop3 = self.enc3(x, t, debug=debug)
-        
+        x, copy_and_crop3 = self.enc3(x, t, debug=debug)        
         #Bottleneck
-        x = self.bottleneck(x, t)
-        
+        x = self.bottleneck(x, t)        
         #Décodeur
         x = self.dec1(x, t, copy_and_crop3, debug=debug)
         x = self.dec2(x, t, copy_and_crop2, debug=debug)
@@ -113,10 +122,9 @@ class UNet(nnx.Module):
                 
         return x
 
-toto = UNet(in_channels=1, time_dim=10, rngs=nnx.Rngs(0))
-x, t = jnp.ones((1,32,32,1)), jnp.ones((1,10))
+toto = UNet(in_channels=1, time_dim=40, rngs=nnx.Rngs(0))
+x, t = jnp.ones((1,32,32,1)), 0
 print("x shape:", x.shape)
-print("t shape:", t.shape)
-output = toto(x, t, debug=False)
+output = toto(x, t, debug=True)
 print(output.shape)  # Devrait afficher (1, 32, 32, 1)
 
