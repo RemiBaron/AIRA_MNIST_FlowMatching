@@ -6,8 +6,6 @@ import unet
 import numpy as np
 from functools import partial
 
-
-# Je n'ai pas de gpu nvidia... Aïe aïe aïe.
 print("Available devices:", jax.devices())
 device = jax.devices()[0]
 print("Using device:", device)
@@ -70,6 +68,9 @@ def lossdef(params, state, batchX):
     #Equations 22 et 23
     v_trident_t_xo = model(trident_t_x0, t)
     u_t_trident_t_x0  = x1 - (1 - sigma_min)*x0    
+    print("v_trident_t_xo shape:", v_trident_t_xo.shape)
+    print("u_t_trident_t_x0 shape:", u_t_trident_t_x0.shape)
+    
     loss = jnp.mean((v_trident_t_xo - u_t_trident_t_x0) ** 2)
     return loss
 

@@ -19,6 +19,7 @@ class DoubleConvolution(nnx.Module):
         x = self.conv1(x)
         #On ajoute le time embedding
         t = self.time_adapter(t)
+        t = t[:, None, None, :]
         x = x + t
         #Deuxième convolution
         x = self.conv2(x)
@@ -87,9 +88,14 @@ def Fourier_embeding(t, time_dim):
     """
         Embedding de t en utilisant Fourier.
     """
+    t = jnp.asarray(t, dtype=jnp.float32)
+    if t.ndim == 0:                     # scalaire
+        t = t[None]                     # -> (1,)
+    elif t.ndim > 1:
+        t = t.reshape((t.shape[0],))
     k = jnp.arange(time_dim//2, dtype=jnp.float32) 
-    cos = jnp.cos((2**k) * (2*jnp.pi) * t)
-    sin = jnp.sin((2**k) * (2*jnp.pi) * t)
+    cos = jnp.cos((2 * jnp.pi) * t[:, None] * (2.0 ** k)[None, :])
+    sin = jnp.sin((2 * jnp.pi) * t[:, None] * (2.0 ** k)[None, :])
     return jnp.concatenate([cos, sin], axis=-1)
 
 class UNet(nnx.Module):
@@ -105,11 +111,13 @@ class UNet(nnx.Module):
         self.dec1 = DecoderBlock(in_channels*8, time_dim, rngs=rngs)
         self.dec2 = DecoderBlock(in_channels*4, time_dim, rngs=rngs)
         self.dec3 = DecoderBlock(in_channels*2, time_dim, rngs=rngs)  
+        self.out = nnx.Conv(in_channels, 1, kernel_size=(1,1), padding="SAME", rngs=rngs)
         self.time_dim = time_dim      
         
     def __call__(self, x, t, debug=False):
         #On embed tout d'abord t en time_dim dimensions en utilisant Fourier
         t = Fourier_embeding(t, time_dim=self.time_dim)
+        x = jnp.pad(x, ((0,0),(2,2),(2,2),(0,0))) 
         x = self.stem(x) 
         if debug:
             print("Time embedding shape:", t.shape)
@@ -123,12 +131,18 @@ class UNet(nnx.Module):
         x = self.dec1(x, t, copy_and_crop3, debug=debug)
         x = self.dec2(x, t, copy_and_crop2, debug=debug)
         x = self.dec3(x, t, copy_and_crop1, debug=debug)
+        x = self.out(x)
+        x = x[:,2:-2,2:-2,:] 
                 
         return x
-
-"""toto = UNet(in_channels=1, time_dim=40, rngs=nnx.Rngs(0))
-x, t = jnp.ones((1,32,32,1)), 0
+"""
+toto = UNet(in_channels=1, time_dim=40, rngs=nnx.Rngs(0))
+x = jnp.ones((1,28,28,1))
+key = jax.random.PRNGKey(32)
+t = jax.random.uniform(key, (1, 1, 1, 1))
 print("x shape:", x.shape)
 output = toto(x, t, debug=True)
-print(output.shape)  # Devrait afficher (1, 32, 32, 1)"""
+print(output.shape)
+"""
+
 
