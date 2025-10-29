@@ -14,4 +14,5 @@ python test.py
 L'architecture du modèle utilisé peut être trouvée dans unet.py.
 
 Kind regards,
+
 Abel Verley et Rémi Baron

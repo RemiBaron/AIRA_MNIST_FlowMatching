@@ -1,4 +1,5 @@
 from flax import nnx
+import jax
 import jax.numpy as jnp
 from functools import partial
 
@@ -65,8 +66,7 @@ class DecoderBlock(nnx.Module):
     
     def __init__(self, in_channels, time_dim, rngs: nnx.Rngs):
         self.upsample = nnx.ConvTranspose(in_channels, in_channels//2, kernel_size=(2,2), strides=(2,2), padding="SAME", rngs=rngs)
-        self.reduce = nnx.Conv(in_channels+in_channels//2, in_channels//2, kernel_size=(1,1),
-                               padding="SAME", rngs=rngs)
+        self.reduce = nnx.Conv(in_channels+in_channels//2, in_channels//2, kernel_size=(1,1), padding="SAME", rngs=rngs)
         self.double_conv = DoubleConvolution(in_channels//2, time_dim, rngs=rngs)
         
     def __call__(self, x, t, copy_and_crop,debug=False):
@@ -82,6 +82,7 @@ class DecoderBlock(nnx.Module):
             print("DecoderBlock output shape:", x.shape)
         return x
 
+@partial(jax.jit, static_argnums=(1,))
 def Fourier_embeding(t, time_dim):
     """
         Embedding de t en utilisant Fourier.
@@ -96,17 +97,20 @@ class UNet(nnx.Module):
         Le modèle UNet complet, avec encodeur, bottleneck et décodeur.
     """
     def __init__(self, in_channels, time_dim, rngs: nnx.Rngs):
+        self.stem = nnx.Conv(1, in_channels, (3,3), padding="SAME", rngs=rngs)
         self.enc1 = EncoderBlock(in_channels, time_dim, rngs=rngs)
         self.enc2 = EncoderBlock(in_channels*2, time_dim, rngs=rngs)
         self.enc3 = EncoderBlock(in_channels*4, time_dim, rngs=rngs)
         self.bottleneck = Bottleneck(in_channels*8, time_dim, rngs=rngs)
         self.dec1 = DecoderBlock(in_channels*8, time_dim, rngs=rngs)
         self.dec2 = DecoderBlock(in_channels*4, time_dim, rngs=rngs)
-        self.dec3 = DecoderBlock(in_channels*2, time_dim, rngs=rngs)        
+        self.dec3 = DecoderBlock(in_channels*2, time_dim, rngs=rngs)  
+        self.time_dim = time_dim      
         
     def __call__(self, x, t, debug=False):
         #On embed tout d'abord t en time_dim dimensions en utilisant Fourier
-        t = Fourier_embeding(t, time_dim=40)
+        t = Fourier_embeding(t, time_dim=self.time_dim)
+        x = self.stem(x) 
         if debug:
             print("Time embedding shape:", t.shape)
         #Encodeur
@@ -122,9 +126,9 @@ class UNet(nnx.Module):
                 
         return x
 
-toto = UNet(in_channels=1, time_dim=40, rngs=nnx.Rngs(0))
+"""toto = UNet(in_channels=1, time_dim=40, rngs=nnx.Rngs(0))
 x, t = jnp.ones((1,32,32,1)), 0
 print("x shape:", x.shape)
 output = toto(x, t, debug=True)
-print(output.shape)  # Devrait afficher (1, 32, 32, 1)
+print(output.shape)  # Devrait afficher (1, 32, 32, 1)"""
 
