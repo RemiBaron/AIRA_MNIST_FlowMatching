@@ -49,43 +49,55 @@ model = unet.UNet(in_channels=32, time_dim=40, rngs=nnx.Rngs(0))
 optimizer = optax.adam(learning_rate=1e-3)
 params, state = nnx.split(model)
 opt_state = optimizer.init(params)
+key = jax.random.PRNGKey(0)
 
-#Boucle d'entrainement
-def lossdef(params, batchX):
-    x = batchX
-    #TODO : blablabla on doit créer la même loss que dans le papier flow matching
-    loss = jnp.array(0.0)
-    return loss
+def lossdef(params, state, batchX):
+    """
+        Fonction de loss pour l'entrainement du modèle. On se colle à la definition de la loss dans le papier Flow Matching.
+    """
+    x1 = batchX
+    key_x0, key_t = jax.random.split(key)
+    x0 = jax.random.normal(key_x0, x1.shape)
+    t = jax.random.uniform(key_t, (1, 1, 1, 1))
+    sigma_min = 0.002 #Je l'ai pris un peu arbitrairement 
+    model = nnx.merge(params, state)
     
+    #Equation 20
+    mu_t_x1 = t * x1
+    sigma_t_x1 = 1 - (1 - sigma_min) * t 
+    #Equation 11
+    trident_t_x0 = sigma_t_x1 * x0 + mu_t_x1
+    #Equations 22 et 23
+    v_trident_t_xo = model(trident_t_x0, t)
+    u_t_trident_t_x0  = x1 - (1 - sigma_min)*x0    
+    loss = jnp.mean((v_trident_t_xo - u_t_trident_t_x0) ** 2)
+    return loss
+
+#Boucle d'entrainement    
 @jax.jit
 def train_step(carry, batchX) :
-        params, opt_state, running_loss, k = carry["params"], carry["opt_state"], carry["running_loss"], carry["k"]
-        loss, grads = jax.value_and_grad(lossdef)(params, batchX)
+        params, state, opt_state, running_loss, k = carry["params"], carry["state"], carry["opt_state"], carry["running_loss"], carry["k"]
+        loss, grads = jax.value_and_grad(lossdef)(params, state, batchX)
         updates, opt_state = optimizer.update(grads, opt_state, params)
         params = optax.apply_updates(params, updates)
-        return {"params": params, "opt_state": opt_state, "running_loss": running_loss + loss, "k": k + 1}, loss
-        
-        
+        return {"params": params, "state": state, "opt_state": opt_state, "running_loss": running_loss + loss, "k": k + 1}, loss
+
 @jax.jit
-def train_epoch(params, opt_state, batchesX):
-    
-    init = {"params": params, "opt_state": opt_state, "running_loss": jnp.array(0.0), "k": jnp.array(0)}
+def train_epoch(params, state, opt_state, batchesX):   
+    init = {"params": params, "state": state,"opt_state": opt_state, "running_loss": jnp.array(0.0), "k": jnp.array(0)}
     carry, _ = jax.lax.scan(train_step, init, batchesX)
     running_loss, total = carry["running_loss"], carry["k"]
     average_loss = running_loss / total
     return carry["params"], carry["opt_state"], average_loss
-    
 
-#Easter egg : ABEEEEEEEEEEEEEEEEEEEEEELLLLLLLL C'EST TROP DUR JAX !! GRAAAAAAAAHHHHH >:(
-    
 @partial(jax.jit, static_argnames=('num_epochs',))
-def train(params, opt_state, X_train, num_epochs: int):
+def train(params, state, opt_state, X_train, num_epochs: int):
     def epoch_step(carry, X):
-        params, opt_state, batchesX = carry["params"], carry["opt_state"], carry["X_train"]
-        params, opt_state, average_loss = train_epoch(params, opt_state, batchesX)
+        params, state, opt_state, batchesX = carry["params"], carry["state"], carry["opt_state"], carry["X_train"]
+        params, opt_state, average_loss = train_epoch(params, state, opt_state, batchesX)
         jax.debug.print("Epoch loss = {l}", l=average_loss)
-        return {"params": params, "opt_state": opt_state, "X_train": batchesX}, average_loss
-    init = {"params": params, "opt_state": opt_state, "X_train": X_train}
+        return {"params": params, "state": state, "opt_state": opt_state, "X_train": batchesX}, average_loss
+    init = {"params": params, "state": state, "opt_state": opt_state, "X_train": X_train}
     carry, train_loss = jax.lax.scan(epoch_step, init, None, length=num_epochs)
     params, opt_state = carry["params"], carry["opt_state"]
     return params, opt_state, train_loss
@@ -93,4 +105,4 @@ def train(params, opt_state, X_train, num_epochs: int):
 
 #Et on lance l'entrainement
 num_epochs = 10
-train(params, opt_state, X_train, num_epochs)
+train(params, state, opt_state, X_train, num_epochs)
