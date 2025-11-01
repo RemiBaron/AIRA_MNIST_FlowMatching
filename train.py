@@ -1,7 +1,9 @@
 import os
 import jax
 import jax.numpy as jnp
-from flax import nnx, serialization
+from flax import nnx
+from flax.training import checkpoints
+import shutil
 import optax
 import unet
 import numpy as np
@@ -81,7 +83,7 @@ def train_step(model, optim, batchX, key) :
     optim.update(grads)
     return loss, key
 
-num_epochs = 0
+num_epochs = 5
 for epoch in range(num_epochs):
     epoch_loss = 0.0
     for i in range(X_train.shape[0]):
@@ -91,7 +93,9 @@ for epoch in range(num_epochs):
     print(f"Epoch {epoch+1}: loss={epoch_loss / X_train.shape[0]:.4f}")
 
 #On sauvegarde le modèle entrainé
-model_dir = "./saved_models"
-os.makedirs(model_dir, exist_ok=True)
-model_path = os.path.join(model_dir, "my_unet_model")
-#jsp faire
+model_dir =  os.path.abspath("./saved_models")
+if not os.path.exists(model_dir):
+    os.makedirs(model_dir)
+params, state = nnx.split(model)
+pure = nnx.State.to_pure_dict(state)
+checkpoints.save_checkpoint(model_dir, pure, step=0, overwrite=True)
