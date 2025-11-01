@@ -83,7 +83,7 @@ def train_step(model, optim, batchX, key) :
     optim.update(grads)
     return loss, key
 
-num_epochs = 5
+num_epochs = 50
 for epoch in range(num_epochs):
     epoch_loss = 0.0
     for i in range(X_train.shape[0]):
