@@ -10,7 +10,7 @@ import numpy as np
 
 
 #On commence par restaurer le modèle sauvegardé par train.py
-model_dir =  os.path.abspath("./saved_models")
+model_dir =  os.path.abspath("./saved_models/V1")
 restored_state = checkpoints.restore_checkpoint(model_dir, target=None)
 
 abstract_model = nnx.eval_shape(lambda: unet.UNet(in_channels=1, time_dim=40, rngs=nnx.Rngs(0)))
@@ -26,10 +26,10 @@ def vector_field(t, x, _):
     """
     return model(x, t)
 
-def sample(num_samples, steps):
+def sample(num_samples, steps, normalize=True):
     #En gros en entrée on veut du bruit donc on prend du bruit gaussien
     key = jax.random.PRNGKey(0)
-    x0 = jax.random.normal(key, (num_samples, 28, 28, 1), dtype=jnp.float32)
+    x0 = jax.random.normal(key, (num_samples, 28, 28, 1))
 
     #On résout l'ODE (décrite dans vector_field) de t=0 à t=1 avec la méthode d'Euler
     term = diffrax.ODETerm(vector_field)
@@ -37,9 +37,11 @@ def sample(num_samples, steps):
     dt = 1.0 / steps
     solution_magique = diffrax.diffeqsolve(term, solver, t0=0.0, t1=1.0, dt0=dt, y0=x0, saveat=diffrax.SaveAt(t1=True), stepsize_controller=diffrax.ConstantStepSize())
     samples = jnp.squeeze(solution_magique.ys, axis=0)
+    if normalize:
+        samples = (samples - jnp.min(samples)) / (jnp.max(samples) - jnp.min(samples))
     return samples
 
-samples = sample(100, 500)
+samples = sample(100, 500, False)
 
 #Enfin, on affiche nos images générées
 def save_grid(images, rows, cols, path):
@@ -63,5 +65,5 @@ def save_grid(images, rows, cols, path):
 the_final_dir = os.path.abspath("./generated_images")
 if not os.path.exists(the_final_dir):
     os.makedirs(the_final_dir)
-the_final_path = os.path.join(the_final_dir, "images_magnifiques(V1).png")
+the_final_path = os.path.join(the_final_dir, "images_magnifiques(V1_unormalized).png")
 save_grid(samples, 10, 10, the_final_path)

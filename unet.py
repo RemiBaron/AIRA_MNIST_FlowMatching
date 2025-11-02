@@ -135,14 +135,5 @@ class UNet(nnx.Module):
         x = x[:,2:-2,2:-2,:] 
                 
         return x
-"""
-toto = UNet(in_channels=1, time_dim=40, rngs=nnx.Rngs(0))
-x = jnp.ones((1,28,28,1))
-key = jax.random.PRNGKey(32)
-t = jax.random.uniform(key, (1, 1, 1, 1))
-print("x shape:", x.shape)
-output = toto(x, t, debug=True)
-print(output.shape)
-"""
 
 

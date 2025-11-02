@@ -93,7 +93,7 @@ for epoch in range(num_epochs):
     print(f"Epoch {epoch+1}: loss={epoch_loss / X_train.shape[0]:.4f}")
 
 #On sauvegarde le modèle entrainé
-model_dir =  os.path.abspath("./saved_models")
+model_dir =  os.path.abspath("./saved_models/V1")
 if not os.path.exists(model_dir):
     os.makedirs(model_dir)
 params, state = nnx.split(model)
