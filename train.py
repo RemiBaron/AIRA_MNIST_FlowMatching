@@ -46,12 +46,12 @@ X_train, Y_train = loader_to_jax_arrays(train_loader)
 X_test, Y_test = loader_to_jax_arrays(test_loader)
 
 #Definition du modèle
-model = unet.UNet(in_channels=1, time_dim=40, rngs=nnx.Rngs(0))
+model = unet.UNet(in_channels=1, time_dim=40, label_dim=40, rngs=nnx.Rngs(0))
 optimizer = optax.adam(learning_rate=1e-3)
 optim = nnx.Optimizer(model, optimizer)
 key = jax.random.PRNGKey(0)
 
-def lossdef(model, batchX, key):
+def lossdef(model, batchX, batchY, key):
     """
         Fonction de loss pour l'entrainement du modèle. On se colle à la definition de la loss dans le papier Flow Matching.
     """
@@ -68,7 +68,7 @@ def lossdef(model, batchX, key):
     #Equation 11
     trident_t_x0 = sigma_t_x1 * x0 + mu_t_x1
     #Equations 22 et 23
-    v_trident_t_xo = model(trident_t_x0, t)
+    v_trident_t_xo = model(trident_t_x0, t, batchY)
     u_t_trident_t_x0  = x1 - (1 - sigma_min)*x0
     
     loss = jnp.mean((v_trident_t_xo - u_t_trident_t_x0) ** 2)
@@ -76,9 +76,9 @@ def lossdef(model, batchX, key):
 
 #Boucle d'entrainement    
 @nnx.jit
-def train_step(model, optim, batchX, key) :
+def train_step(model, optim, batchX, batchY, key) :
     def loss_fn(model):
-        return lossdef(model, batchX, key)
+        return lossdef(model, batchX, batchY, key)
     (loss, key), grads = nnx.value_and_grad(loss_fn, has_aux=True)(model)
     optim.update(grads)
     return loss, key
@@ -88,12 +88,13 @@ for epoch in range(num_epochs):
     epoch_loss = 0.0
     for i in range(X_train.shape[0]):
         batchX = X_train[i]
-        loss, key = train_step(model, optim, batchX, key)
+        batchY = Y_train[i]
+        loss, key = train_step(model, optim, batchX, batchY, key)
         epoch_loss += float(loss)
     print(f"Epoch {epoch+1}: loss={epoch_loss / X_train.shape[0]:.4f}")
 
 #On sauvegarde le modèle entrainé
-model_dir =  os.path.abspath("./saved_models/V1")
+model_dir =  os.path.abspath("./saved_models/V3")
 if not os.path.exists(model_dir):
     os.makedirs(model_dir)
 params, state = nnx.split(model)

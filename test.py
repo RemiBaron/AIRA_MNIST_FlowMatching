@@ -10,23 +10,25 @@ import numpy as np
 
 
 #On commence par restaurer le modèle sauvegardé par train.py
-model_dir =  os.path.abspath("./saved_models/V1")
+model_dir =  os.path.abspath("./saved_models/V3")
 restored_state = checkpoints.restore_checkpoint(model_dir, target=None)
 
-abstract_model = nnx.eval_shape(lambda: unet.UNet(in_channels=1, time_dim=40, rngs=nnx.Rngs(0)))
+abstract_model = nnx.eval_shape(lambda: unet.UNet(in_channels=1, time_dim=40, label_dim=40, rngs=nnx.Rngs(0)))
 abstract_params, abstract_state = nnx.split(abstract_model)
 nnx.replace_by_pure_dict(abstract_state, restored_state)
 model = nnx.merge(abstract_params, restored_state)
 
+#On dit ce qu'on veut générer comme chiffre (test ici)
+y = jnp.repeat(jnp.arange(10, dtype=jnp.int32), 10)
 
 #Puis on prend de quoi résoudre l'ODE (avec la méthode de Euler) qu'on déduit par le modèle entrainé
 def vector_field(t, x, _):
     """
         On veut résoudre dx/dt = v_t(x) avec v_t(x) donné par le modèle entrainé avec t et x en entrée.
     """
-    return model(x, t)
+    return model(x, t, y)  
 
-def sample(num_samples, steps, normalize=True):
+def sample(num_samples, steps):
     #En gros en entrée on veut du bruit donc on prend du bruit gaussien
     key = jax.random.PRNGKey(0)
     x0 = jax.random.normal(key, (num_samples, 28, 28, 1))
@@ -37,11 +39,10 @@ def sample(num_samples, steps, normalize=True):
     dt = 1.0 / steps
     solution_magique = diffrax.diffeqsolve(term, solver, t0=0.0, t1=1.0, dt0=dt, y0=x0, saveat=diffrax.SaveAt(t1=True), stepsize_controller=diffrax.ConstantStepSize())
     samples = jnp.squeeze(solution_magique.ys, axis=0)
-    if normalize:
-        samples = (samples - jnp.min(samples)) / (jnp.max(samples) - jnp.min(samples))
-    return samples
+    normalized = (samples - jnp.min(samples)) / (jnp.max(samples) - jnp.min(samples))
+    return samples, normalized
 
-samples = sample(100, 500, False)
+samples, normalized = sample(100, 500)
 
 #Enfin, on affiche nos images générées
 def save_grid(images, rows, cols, path):
@@ -65,5 +66,7 @@ def save_grid(images, rows, cols, path):
 the_final_dir = os.path.abspath("./generated_images")
 if not os.path.exists(the_final_dir):
     os.makedirs(the_final_dir)
-the_final_path = os.path.join(the_final_dir, "images_magnifiques(V1_unormalized).png")
+the_final_path = os.path.join(the_final_dir, "images_finales(V3).png")
 save_grid(samples, 10, 10, the_final_path)
+the_final_path2 = os.path.join(the_final_dir, "images_finales(V3_nomalized).png")
+save_grid(normalized, 10, 10, the_final_path2)
