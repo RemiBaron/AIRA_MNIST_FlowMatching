@@ -29,7 +29,7 @@ python train.py
 python test.py
 ```
 
-L'architecture du modèle utilisé peut être trouvée dans unet.py. Les checkpoints des modèles entraînés par nos soins peuvent être trouvé dans saved_models/.
+L'architecture du modèle utilisé peut être trouvée dans unet.py. Les checkpoints des modèles entraînés par nos soins peuvent être trouvé dans saved_models/. Le notebook de demo est le fichier demo.ipynb.
 
 ## Conclusion
 
