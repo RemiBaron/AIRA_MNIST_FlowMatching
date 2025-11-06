@@ -1,0 +1,5 @@
+flax==0.10.7
+jax==0.6.2
+jaxlib==0.6.2
+optax==0.2.6
+diffrax==1.26.0

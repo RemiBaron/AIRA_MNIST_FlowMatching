@@ -10,7 +10,7 @@ import numpy as np
 
 
 #On commence par restaurer le modèle sauvegardé par train.py
-model_dir =  os.path.abspath("./saved_models/V3")
+model_dir =  os.path.abspath("./saved_models/V4")
 restored_state = checkpoints.restore_checkpoint(model_dir, target=None)
 
 abstract_model = nnx.eval_shape(lambda: unet.UNet(in_channels=1, time_dim=40, label_dim=40, rngs=nnx.Rngs(0)))
@@ -66,7 +66,7 @@ def save_grid(images, rows, cols, path):
 the_final_dir = os.path.abspath("./generated_images")
 if not os.path.exists(the_final_dir):
     os.makedirs(the_final_dir)
-the_final_path = os.path.join(the_final_dir, "images_finales(V3).png")
+the_final_path = os.path.join(the_final_dir, "images_boosted_par_collab(V4).png")
 save_grid(samples, 10, 10, the_final_path)
-the_final_path2 = os.path.join(the_final_dir, "images_finales(V3_nomalized).png")
+the_final_path2 = os.path.join(the_final_dir, "images_boosted_par_collab(V4_nomalized).png")
 save_grid(normalized, 10, 10, the_final_path2)
